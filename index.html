@@ -1,142 +1,18 @@
 <!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="utf-8">
-  <title>記憶実験アプリ（試作品）</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body {
-      font-family: sans-serif;
-      margin: 20px;
-      line-height: 1.6;
-    }
-    input, button {
-      font-size: 16px;
-      padding: 8px;
-      margin-top: 8px;
-    }
-    button {
-      cursor: pointer;
-    }
-  </style>
-</head>
-
+<html>
 <body>
-<script>
-/* ================================
-   設定（ここだけ必ず変更）
-================================ */
-const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwdp6197yuXkfrffYUTejQnHxNRLUuCmzyxu_P_bRLVypMcIVaDu7iuxJPltMWSlrve/exec";
+  <button onclick="send()">送信テスト</button>
 
-/* ================================
-   被験者IDの管理
-================================ */
-let subjectId = localStorage.getItem("subject_id");
+  <script>
+    const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzj6_r9LPbCNPO09wrQzn7koSSGbm8eSwQBBqCr0MJUlI94-PCKihXy5YgbzW8bZlQl3w/exec";
 
-// 初回：ID入力画面
-if (!subjectId) {
-  document.body.innerHTML = `
-    <h2>記憶実験への参加</h2>
-    <p>
-      配布された <b>被験者ID</b> を入力してください。<br>
-      （例：S01）
-    </p>
-
-    <input id="sid" placeholder="被験者ID">
-    <br>
-    <button onclick="saveId()">開始</button>
-  `;
-}
-
-// ID保存
-function saveId() {
-  const id = document.getElementById("sid").value.trim();
-  if (!id) {
-    alert("被験者IDを入力してください");
-    return;
-  }
-  localStorage.setItem("subject_id", id);
-  location.reload();
-}
-
-/* ================================
-   グループ分け
-   偶数 → 実験群
-   奇数 → 対照群
-================================ */
-function getGroup(id) {
-  const num = parseInt(id.replace("S", ""));
-  return (num % 2 === 0) ? "experiment" : "control";
-}
-
-const group = subjectId ? getGroup(subjectId) : null;
-
-/* ================================
-   学習カード（試作用・1枚）
-================================ */
-const card = {
-  id: "word_01",
-  question: "エビングハウスが提唱した記憶の減衰モデルの名称は？",
-  answer: "忘却曲線"
-};
-
-/* ================================
-   メイン画面
-================================ */
-if (subjectId) {
-  document.body.innerHTML = `
-    <h2>学習画面</h2>
-
-    <p>
-      被験者ID：<b>${subjectId}</b><br>
-      グループ：<b>${group}</b>
-    </p>
-
-    <hr>
-
-    <p>次の質問に答えてください。</p>
-    <h3>${card.question}</h3>
-
-    <input id="answer" placeholder="答えを入力">
-    <br>
-    <button onclick="submitAnswer()">回答</button>
-
-    <p id="result"></p>
-  `;
-}
-
-/* ================================
-   回答送信
-================================ */
-function submitAnswer() {
-  const userAnswer = document.getElementById("answer").value.trim();
-  if (!userAnswer) {
-    alert("答えを入力してください");
-    return;
-  }
-
-  const correct = (userAnswer === card.answer) ? 1 : 0;
-
-  // 今回は仮で 24時間経過とする
-  const elapsedHours = 24;
-
-  const payload = {
-    subject_id: subjectId,
-    group: group,
-    phase: "training",
-    card_id: card.id,
-    elapsed_hours: elapsedHours,
-    correct: correct
-  };
-
-  fetch(WEBAPP_URL, {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
-
-  document.getElementById("result").innerText =
-    correct ? "正解です。" : "不正解です。";
-}
-</script>
+    function send() {
+      fetch(WEBAPP_URL, {
+        method: "POST",
+        mode: "no-cors"
+      });
+      alert("送信した");
+    }
+  </script>
 </body>
 </html>
