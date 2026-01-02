@@ -1,17 +1,40 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>実験テスト</title>
+</head>
 <body>
-  <button onclick="send()">送信テスト</button>
+  <h2>記憶実験（送信テスト）</h2>
+
+  <p>
+    被験者ID：
+    <input id="sid" placeholder="S01">
+  </p>
+
+  <p>
+    回答：
+    <input id="ans" placeholder="答え">
+  </p>
+
+  <button onclick="send()">送信</button>
 
   <script>
-    const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzj6_r9LPbCNPO09wrQzn7koSSGbm8eSwQBBqCr0MJUlI94-PCKihXy5YgbzW8bZlQl3w/exec";
+    const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwh3XZ2CFLOAuRr8-YDpE5MQWj6TjlXPoKC3SuXLgvAZBchBlOrY9gtLz8aU_wEt7QtBg/exec";
 
     function send() {
+      const payload = {
+        subject_id: document.getElementById("sid").value,
+        answer: document.getElementById("ans").value
+      };
+
       fetch(WEBAPP_URL, {
         method: "POST",
-        mode: "no-cors"
+        mode: "no-cors",
+        body: JSON.stringify(payload)
       });
-      alert("送信した");
+
+      alert("送信しました");
     }
   </script>
 </body>
