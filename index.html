@@ -2,39 +2,162 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <title>実験テスト</title>
+  <title>記憶実験</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      line-height: 1.6;
+    }
+    input, button {
+      font-size: 16px;
+      padding: 6px;
+      margin-top: 8px;
+    }
+    button {
+      cursor: pointer;
+    }
+  </style>
 </head>
+
 <body>
-  <h2>記憶実験（送信テスト）</h2>
-
-  <p>
-    被験者ID：
-    <input id="sid" placeholder="S01">
-  </p>
-
-  <p>
-    回答：
-    <input id="ans" placeholder="答え">
-  </p>
-
-  <button onclick="send()">送信</button>
+  <h2 id="title">記憶実験</h2>
+  <div id="main"></div>
 
   <script>
-    const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwh3XZ2CFLOAuRr8-YDpE5MQWj6TjlXPoKC3SuXLgvAZBchBlOrY9gtLz8aU_wEt7QtBg/exec";
+    /* ================================
+       設定（必ず変更）
+    ================================= */
+    const WEBAPP_URL = "★★ ここに /exec URL を貼る ★★";
 
-    function send() {
-      const payload = {
-        subject_id: document.getElementById("sid").value,
-        answer: document.getElementById("ans").value
-      };
+    /* ================================
+       被験者ID管理
+    ================================= */
+    let subject_id = localStorage.getItem("subject_id");
+    let startTime = null;
 
-      fetch(WEBAPP_URL, {
+    if (!subject_id) {
+      showIdInput();
+    } else {
+      checkStatus();
+    }
+
+    /* ================================
+       画面：ID入力
+    ================================= */
+    function showIdInput() {
+      document.getElementById("main").innerHTML = `
+        <p>被験者IDを入力してください。</p>
+        <input id="sid" placeholder="S01">
+        <br>
+        <button onclick="saveId()">開始</button>
+      `;
+    }
+
+    function saveId() {
+      const id = document.getElementById("sid").value.trim();
+      if (!id) {
+        alert("被験者IDを入力してください");
+        return;
+      }
+      localStorage.setItem("subject_id", id);
+      subject_id = id;
+      checkStatus();
+    }
+
+    /* ================================
+       サーバーに状態確認
+    ================================= */
+    async function checkStatus() {
+      const res = await fetch(WEBAPP_URL, {
         method: "POST",
-        mode: "no-cors",
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ subject_id })
       });
 
-      alert("送信しました");
+      const data = await res.json();
+
+      // 初回登録直後
+      if (data.status === "registered") {
+        location.reload();
+        return;
+      }
+
+      // まだ時間でない
+      if (data.status === "wait") {
+        const t = new Date(data.next_time);
+        document.getElementById("main").innerHTML = `
+          <p>本日の課題はまだ開始できません。</p>
+          <p>
+            <b>次回は<br>
+            ${t.toLocaleString()} 以降にアクセスしてください。</b>
+          </p>
+        `;
+        return;
+      }
+
+      // 課題を実施する
+      if (data.status === "do") {
+        startTime = Date.now();
+        document.getElementById("main").innerHTML = `
+          <p><b>Day ${data.day}</b></p>
+          <p>${data.question}</p>
+          <input id="ans" placeholder="答えを入力">
+          <br>
+          <button onclick="sendAnswer()">送信</button>
+        `;
+        return;
+      }
+
+      // 回答保存後
+      if (data.status === "saved") {
+        const t = new Date(data.next_time);
+        document.getElementById("main").innerHTML = `
+          <p>回答を保存しました。</p>
+          <p>
+            <b>次回は<br>
+            ${t.toLocaleString()} 以降にアクセスしてください。</b>
+          </p>
+        `;
+        return;
+      }
+    }
+
+    /* ================================
+       回答送信
+    ================================= */
+    async function sendAnswer() {
+      const ans = document.getElementById("ans").value.trim();
+      if (!ans) {
+        alert("答えを入力してください");
+        return;
+      }
+
+      const rt = Math.floor((Date.now() - startTime) / 1000);
+      const correct = (ans === "忘却曲線") ? 1 : 0;
+
+      const res = await fetch(WEBAPP_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          subject_id: subject_id,
+          answer: ans,
+          correct: correct,
+          rt: rt
+        })
+      });
+
+      const data = await res.json();
+
+      if (data.status === "saved") {
+        const t = new Date(data.next_time);
+        document.getElementById("main").innerHTML = `
+          <p>回答を保存しました。</p>
+          <p>
+            <b>次回は<br>
+            ${t.toLocaleString()} 以降にアクセスしてください。</b>
+          </p>
+        `;
+      }
     }
   </script>
 </body>
