@@ -3,6 +3,13 @@
 <head>
 <meta charset="utf-8">
 <title>記憶実験</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font-family: sans-serif; margin: 20px; }
+  button, input { font-size: 16px; margin-top: 8px; }
+  .info { background: #f4f4f4; padding: 10px; margin-top: 10px; }
+  .error { color: red; font-weight: bold; }
+</style>
 </head>
 
 <body>
@@ -10,72 +17,126 @@
 <div id="main"></div>
 
 <script>
+/* ===== 重要：ここだけ自分のURLに ===== */
 const WEBAPP_URL =
   "https://script.google.com/macros/s/AKfycbwg8kL5Pcx82IqaLx8OdRXDm_XZ0xEbdJ1iWZCCzxhhBee99yJlqJjRLEpI2Qk3uTkkRw/exec";
 
+/* ===== 初期化 ===== */
+const main = document.getElementById("main");
 let subject_id = localStorage.getItem("subject_id");
 let startTime = null;
 
-if (!subject_id) showId();
-else check();
+if (!subject_id) {
+  showIdInput();
+} else {
+  checkStatus();
+}
 
-function showId() {
+/* ===== ID入力 ===== */
+function showIdInput() {
   main.innerHTML = `
+    <p>被験者IDを入力してください</p>
     <input id="sid" placeholder="S01">
-    <button onclick="save()">開始</button>
+    <br>
+    <button onclick="saveId()">開始</button>
   `;
 }
 
-function save() {
-  subject_id = sid.value.trim();
-  localStorage.setItem("subject_id", subject_id);
-  check();
+function saveId() {
+  const sid = document.getElementById("sid").value.trim();
+  if (!sid) {
+    alert("IDを入力してください");
+    return;
+  }
+  localStorage.setItem("subject_id", sid);
+  subject_id = sid;
+  checkStatus();
 }
 
-async function check() {
-  const r = await fetch(WEBAPP_URL, {
-    method: "POST",
-    body: JSON.stringify({ subject_id })
-  });
-  const d = await r.json();
+/* ===== 状態確認 ===== */
+async function checkStatus() {
+  try {
+    const res = await fetch(WEBAPP_URL, {
+      method: "POST",
+      body: JSON.stringify({ subject_id })
+    });
+    const data = await res.json();
 
-  if (d.status === "registered") location.reload();
+    if (data.status === "do") {
+      startTime = Date.now();
+      main.innerHTML = `
+        <p><b>Day ${data.day}</b></p>
+        <p>${data.question}</p>
+        <input id="ans">
+        <br>
+        <button onclick="sendAnswer()">送信</button>
+      `;
+      return;
+    }
 
-  if (d.status === "wait")
-    main.innerHTML =
-      `次回：${new Date(d.next_time).toLocaleString()}`;
+    if (data.status === "wait") {
+      main.innerHTML = `
+        <div class="info">
+          <p>まだ学習できません</p>
+          <p>次回：${new Date(data.next_time).toLocaleString()}</p>
+        </div>
+      `;
+      return;
+    }
 
-  if (d.status === "do") {
-    startTime = Date.now();
+    if (data.status === "saved") {
+      main.innerHTML = `
+        <div class="info">
+          <p>保存しました</p>
+          <p>次回：${new Date(data.next_time).toLocaleString()}</p>
+        </div>
+      `;
+      return;
+    }
+
+    if (data.status === "error") {
+      main.innerHTML = `<p class="error">${data.message}</p>`;
+    }
+
+  } catch (e) {
     main.innerHTML = `
-      ${d.question}<br>
-      <input id="ans">
-      <button onclick="send()">送信</button>
+      <p class="error">
+        通信エラー。<br>
+        WebアプリURLと公開設定を確認してください。
+      </p>
     `;
+    console.error(e);
+  }
+}
+
+/* ===== 回答送信 ===== */
+async function sendAnswer() {
+  const ans = document.getElementById("ans").value.trim();
+  if (!ans) {
+    alert("答えを入力してください");
+    return;
   }
 
-  if (d.status === "saved")
-    main.innerHTML =
-      `保存完了<br>次回：${new Date(d.next_time).toLocaleString()}`;
-}
+  const rt = Math.floor((Date.now() - startTime) / 1000);
 
-async function send() {
-  const rt = Math.floor((Date.now()-startTime)/1000);
-  const a = ans.value.trim();
-
-  const r = await fetch(WEBAPP_URL, {
+  const res = await fetch(WEBAPP_URL, {
     method: "POST",
     body: JSON.stringify({
       subject_id,
-      answer: a,
-      correct: a==="エビングハウス"?1:0,
+      answer: ans,
+      correct: ans === "エビングハウス" ? 1 : 0,
       rt
     })
   });
-  const d = await r.json();
-  main.innerHTML =
-    `次回：${new Date(d.next_time).toLocaleString()}`;
+  const data = await res.json();
+
+  main.innerHTML = `
+    <div class="info">
+      <p>保存しました</p>
+      <p>次回：${new Date(data.next_time).toLocaleString()}</p>
+    </div>
+  `;
 }
 </script>
 </body>
-</html
+</html>
