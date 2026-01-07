@@ -1,49 +1,12 @@
-
-<html lang="ja">
-<head>
-  <meta charset="utf-8">
-  <title>記憶実験</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body {
-      font-family: sans-serif;
-      margin: 20px;
-      line-height: 1.6;
-    }
-    input, button {
-      font-size: 16px;
-      padding: 6px;
-      margin-top: 8px;
-    }
-    button {
-      cursor: pointer;
-    }
-    .error {
-      color: red;
-      font-weight: bold;
-    }
-    .info {
-      margin-top: 10px;
-      padding: 8px;
-      background: #f4f4f4;
-    }
-  </style>
-</head>
-
-<body>
-  <h2 id="title">記憶実験</h2>
-  <div id="main"></div>
+<h2>記憶実験</h2>
+<div id="main"></div>
 
 <script>
-/* ================================
-   設定（必ず確認）
-================================ */
+/* ===== 設定 ===== */
 const WEBAPP_URL =
   "https://script.google.com/macros/s/AKfycbwg8kL5Pcx82IqaLx8OdRXDm_XZ0xEbdJ1iWZCCzxhhBee99yJlqJjRLEpI2Qk3uTkkRw/exec";
 
-/* ================================
-   初期処理
-================================ */
+/* ===== 初期処理 ===== */
 let subject_id = localStorage.getItem("subject_id");
 let startTime = null;
 
@@ -53,12 +16,10 @@ if (!subject_id) {
   checkStatus();
 }
 
-/* ================================
-   被験者ID入力
-================================ */
+/* ===== ID入力画面 ===== */
 function showIdInput() {
   document.getElementById("main").innerHTML = `
-    <p>被験者IDを入力してください。</p>
+    <p>被験者IDを入力してください</p>
     <input id="sid" placeholder="S01">
     <br>
     <button onclick="saveId()">開始</button>
@@ -76,9 +37,7 @@ function saveId() {
   checkStatus();
 }
 
-/* ================================
-   状態確認（最重要）
-================================ */
+/* ===== サーバー確認 ===== */
 async function checkStatus() {
   try {
     const res = await fetch(WEBAPP_URL, {
@@ -86,125 +45,69 @@ async function checkStatus() {
       body: JSON.stringify({ subject_id })
     });
 
-    const text = await res.text();
-    const data = JSON.parse(text);
+    const data = await res.json();
 
-    /* ---------- 初回登録 ---------- */
     if (data.status === "registered") {
       location.reload();
       return;
     }
 
-    /* ---------- まだ時間でない ---------- */
     if (data.status === "wait") {
-      const t = new Date(data.next_time);
       document.getElementById("main").innerHTML = `
-        <p>本日の課題はまだ開始できません。</p>
-
-        <div class="info">
-          <p><b>次回学習日時</b></p>
-          <p>${t.toLocaleString()}</p>
-          <p>（学習間隔：${data.interval_hours} 時間）</p>
-        </div>
+        <p>まだ学習時間ではありません</p>
+        <p><b>次回：${new Date(data.next_time).toLocaleString()}</b></p>
       `;
       return;
     }
 
-    /* ---------- 課題実施 ---------- */
     if (data.status === "do") {
       startTime = Date.now();
       document.getElementById("main").innerHTML = `
-        <p><b>Day ${data.day}</b></p>
+        <p>Day ${data.day}</p>
         <p>${data.question}</p>
-
-        <input id="ans" placeholder="答えを入力">
+        <input id="ans">
         <br>
         <button onclick="sendAnswer()">送信</button>
       `;
       return;
     }
 
-    /* ---------- 保存後 ---------- */
     if (data.status === "saved") {
-      const t = new Date(data.next_time);
       document.getElementById("main").innerHTML = `
-        <p>回答を保存しました。</p>
-
-        <div class="info">
-          <p><b>次回学習日時</b></p>
-          <p>${t.toLocaleString()}</p>
-          <p>（次回までの学習間隔：${data.interval_hours} 時間）</p>
-        </div>
-      `;
-      return;
-    }
-
-    /* ---------- エラー ---------- */
-    if (data.status === "error") {
-      document.getElementById("main").innerHTML = `
-        <p class="error">サーバーエラーが発生しました。</p>
-        <p>${data.message}</p>
+        <p>保存しました</p>
+        <p><b>次回：${new Date(data.next_time).toLocaleString()}</b></p>
       `;
     }
 
   } catch (e) {
-    document.getElementById("main").innerHTML = `
-      <p class="error">
-        通信エラーが発生しました。<br>
-        ページを再読み込みしてください。
-      </p>
-    `;
+    document.getElementById("main").innerHTML =
+      "<p style='color:red'>通信エラー</p>";
     console.error(e);
   }
 }
 
-/* ================================
-   回答送信
-================================ */
+/* ===== 回答送信 ===== */
 async function sendAnswer() {
   const ans = document.getElementById("ans").value.trim();
-  if (!ans) {
-    alert("答えを入力してください");
-    return;
-  }
+  if (!ans) return alert("答えを入力してください");
 
   const rt = Math.floor((Date.now() - startTime) / 1000);
-  const correct = (ans === "忘却曲線") ? 1 : 0;
 
-  try {
-    const res = await fetch(WEBAPP_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        subject_id: subject_id,
-        answer: ans,
-        correct: correct,
-        rt: rt
-      })
-    });
+  const res = await fetch(WEBAPP_URL, {
+    method: "POST",
+    body: JSON.stringify({
+      subject_id,
+      answer: ans,
+      correct: ans === "エビングハウス" ? 1 : 0,
+      rt
+    })
+  });
 
-    const text = await res.text();
-    const data = JSON.parse(text);
+  const data = await res.json();
 
-    if (data.status === "saved") {
-      const t = new Date(data.next_time);
-      document.getElementById("main").innerHTML = `
-        <p>回答を保存しました。</p>
-
-        <div class="info">
-          <p><b>次回学習日時</b></p>
-          <p>${t.toLocaleString()}</p>
-          <p>（次回までの学習間隔：${data.interval_hours} 時間）</p>
-        </div>
-      `;
-    }
-
-  } catch (e) {
-    document.getElementById("main").innerHTML = `
-      <p class="error">送信中にエラーが発生しました。</p>
-    `;
-    console.error(e);
-  }
+  document.getElementById("main").innerHTML = `
+    <p>保存しました</p>
+    <p><b>次回：${new Date(data.next_time).toLocaleString()}</b></p>
+  `;
 }
 </script>
-</body>
-</html>
