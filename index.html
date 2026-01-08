@@ -2,140 +2,73 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<title>記憶実験</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-  body { font-family: sans-serif; margin: 20px; }
-  button, input { font-size: 16px; margin-top: 8px; }
-  .info { background: #f4f4f4; padding: 10px; margin-top: 10px; }
-  .error { color: red; font-weight: bold; }
-</style>
+<title>英単語記憶実験</title>
 </head>
 
 <body>
-<h2>記憶実験</h2>
+<h2>英単語記憶実験</h2>
 <div id="main"></div>
 
 <script>
-/* ===== 重要：ここだけ自分のURLに ===== */
 const WEBAPP_URL =
-  "https://script.google.com/macros/s/AKfycbwg8kL5Pcx82IqaLx8OdRXDm_XZ0xEbdJ1iWZCCzxhhBee99yJlqJjRLEpI2Qk3uTkkRw/exec";
+"https://script.google.com/macros/s/AKfycbwg8kL5Pcx82IqaLx8OdRXDm_XZ0xEbdJ1iWZCCzxhhBee99yJlqJjRLEpI2Qk3uTkkRw/exec";
 
-/* ===== 初期化 ===== */
-const main = document.getElementById("main");
 let subject_id = localStorage.getItem("subject_id");
-let startTime = null;
 
 if (!subject_id) {
-  showIdInput();
-} else {
-  checkStatus();
-}
-
-/* ===== ID入力 ===== */
-function showIdInput() {
-  main.innerHTML = `
-    <p>被験者IDを入力してください</p>
-    <input id="sid" placeholder="S01">
-    <br>
-    <button onclick="saveId()">開始</button>
+  document.getElementById("main").innerHTML = `
+    <input id="sid" placeholder="ID">
+    <button onclick="save()">開始</button>
   `;
+} else {
+  check();
 }
 
-function saveId() {
-  const sid = document.getElementById("sid").value.trim();
-  if (!sid) {
-    alert("IDを入力してください");
-    return;
-  }
-  localStorage.setItem("subject_id", sid);
-  subject_id = sid;
-  checkStatus();
+function save() {
+  subject_id = document.getElementById("sid").value;
+  localStorage.setItem("subject_id", subject_id);
+  check();
 }
 
-/* ===== 状態確認 ===== */
-async function checkStatus() {
-  try {
-    const res = await fetch(WEBAPP_URL, {
-      method: "POST",
-      body: JSON.stringify({ subject_id })
-    });
-    const data = await res.json();
-
-    if (data.status === "do") {
-      startTime = Date.now();
-      main.innerHTML = `
-        <p><b>Day ${data.day}</b></p>
-        <p>${data.question}</p>
-        <input id="ans">
-        <br>
-        <button onclick="sendAnswer()">送信</button>
-      `;
-      return;
-    }
-
-    if (data.status === "wait") {
-      main.innerHTML = `
-        <div class="info">
-          <p>まだ学習できません</p>
-          <p>次回：${new Date(data.next_time).toLocaleString()}</p>
-        </div>
-      `;
-      return;
-    }
-
-    if (data.status === "saved") {
-      main.innerHTML = `
-        <div class="info">
-          <p>保存しました</p>
-          <p>次回：${new Date(data.next_time).toLocaleString()}</p>
-        </div>
-      `;
-      return;
-    }
-
-    if (data.status === "error") {
-      main.innerHTML = `<p class="error">${data.message}</p>`;
-    }
-
-  } catch (e) {
-    main.innerHTML = `
-      <p class="error">
-        通信エラー。<br>
-        WebアプリURLと公開設定を確認してください。
-      </p>
-    `;
-    console.error(e);
-  }
-}
-
-/* ===== 回答送信 ===== */
-async function sendAnswer() {
-  const ans = document.getElementById("ans").value.trim();
-  if (!ans) {
-    alert("答えを入力してください");
-    return;
-  }
-
-  const rt = Math.floor((Date.now() - startTime) / 1000);
-
+async function check() {
   const res = await fetch(WEBAPP_URL, {
     method: "POST",
-    body: JSON.stringify({
-      subject_id,
-      answer: ans,
-      correct: ans === "エビングハウス" ? 1 : 0,
-      rt
-    })
+    body: JSON.stringify({ subject_id })
   });
   const data = await res.json();
 
-  main.innerHTML = `
-    <div class="info">
-      <p>保存しました</p>
-      <p>次回：${new Date(data.next_time).toLocaleString()}</p>
-    </div>
-  `;
+  if (data.status === "do") {
+    document.getElementById("main").innerHTML = `
+      <p>問題 ${data.q_index + 1}/20</p>
+      <b>${data.question}</b><br>
+      <input id="ans">
+      <button onclick="send()">送信</button>
+    `;
+  }
+
+  if (data.status === "wait") {
+    document.getElementById("main").innerHTML =
+      "まだ学習できません";
+  }
+
+  if (data.status === "finished") {
+    document.getElementById("main").innerHTML =
+      "全問終了です";
+  }
+}
+
+async function send() {
+  const ans = document.getElementById("ans").value;
+
+  await fetch(WEBAPP_URL, {
+    method: "POST",
+    body: JSON.stringify({
+      subject_id,
+      answer: ans
+    })
+  });
+
+  check();
 }
 </script>
 </body>
