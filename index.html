@@ -2,98 +2,121 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<title>記憶実験</title>
-<meta name="viewport" content="width=device-width">
+<title>Day1 学習</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  .ok { color: green; }
-  .ng { color: red; }
+body {
+  font-family: sans-serif;
+  background: #f9f9f9;
+  padding: 20px;
+}
+.card {
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 500px;
+  margin: auto;
+}
+.word {
+  font-size: 28px;
+  font-weight: bold;
+}
+.meaning {
+  margin-top: 10px;
+  font-size: 18px;
+  color: #444;
+}
+input {
+  width: 100%;
+  font-size: 18px;
+  padding: 8px;
+  margin-top: 15px;
+}
+button {
+  margin-top: 15px;
+  width: 100%;
+  padding: 10px;
+  font-size: 18px;
+}
+#status {
+  text-align: center;
+  margin-top: 15px;
+  color: #666;
+}
 </style>
 </head>
 
 <body>
-<h2>記憶実験</h2>
-<div id="main"></div>
+<div class="card">
+  <h2>Day1 学習</h2>
+  <div id="main">読み込み中…</div>
+  <div id="status"></div>
+</div>
 
 <script>
 const WEBAPP_URL =
 "https://script.google.com/macros/s/AKfycbwg8kL5Pcx82IqaLx8OdRXDm_XZ0xEbdJ1iWZCCzxhhBee99yJlqJjRLEpI2Qk3uTkkRw/exec";
 
-const QUESTIONS = [
-  "ubiquitous","meticulous","ambiguous","cognitive","inevitable",
-  "arbitrary","plausible","coherent","subsequent","salient",
-  "implicit","explicit","robust","tentative","notorious",
-  "intrinsic","extrinsic","converge","diverge","heuristic"
-];
-
-let subject_id = localStorage.getItem("subject_id");
 let index = 0;
-let answers = [];
+let words = [];
+let subject_id = localStorage.getItem("subject_id");
 
 if (!subject_id) {
-  document.getElementById("main").innerHTML = `
-    <input id="sid" placeholder="S01">
-    <button onclick="start()">開始</button>
-  `;
-} else {
-  show();
+  subject_id = prompt("被験者IDを入力してください");
+  localStorage.setItem("subject_id", subject_id);
 }
 
-function start() {
-  subject_id = document.getElementById("sid").value;
-  localStorage.setItem("subject_id", subject_id);
+loadWords();
+
+async function loadWords() {
+  setStatus("通信中…");
+  const res = await fetch(WEBAPP_URL, {
+    method: "POST",
+    body: JSON.stringify({ mode: "day1", subject_id })
+  });
+  const data = await res.json();
+  words = data.words;
   show();
 }
 
 function show() {
-  document.getElementById("main").innerHTML = `
-    <p>${index + 1} / 20</p>
-    <p><b>${QUESTIONS[index]}</b></p>
-    <input id="ans">
-    <button onclick="next()">送信</button>
-  `;
-}
-
-async function next() {
-  answers.push(document.getElementById("ans").value);
-  index++;
-
-  if (index < QUESTIONS.length) {
-    show();
+  if (index >= words.length) {
+    document.getElementById("main").innerHTML =
+      "<b>Day1 学習が完了しました。</b>";
+    setStatus("");
     return;
   }
 
-  const res = await fetch(WEBAPP_URL, {
+  const w = words[index];
+  document.getElementById("main").innerHTML = `
+    <div class="word">${w.word}</div>
+    <div class="meaning">${w.meaning}</div>
+    <input id="ans" placeholder="上の意味を入力して写してください">
+    <button onclick="next()">次へ (${index+1}/${words.length})</button>
+  `;
+  setStatus("");
+}
+
+async function next() {
+  const ans = document.getElementById("ans").value;
+  setStatus("保存中…");
+
+  await fetch(WEBAPP_URL, {
     method: "POST",
     body: JSON.stringify({
-      subject_id: subject_id,
-      answers: answers
+      mode: "save_day1",
+      subject_id,
+      q_index: index,
+      answer: ans
     })
   });
 
-  const data = await res.json();
+  index++;
+  show();
+}
 
-  let html = "<h3>結果</h3>";
-  data.detail.forEach((d, i) => {
-    html += `
-      <p>
-        ${i + 1}. ${d.question}<br>
-        あなた：${d.your}<br>
-        正解：${d.correct}<br>
-        <span class="${d.ok ? "ok" : "ng"}">
-          ${d.ok ? "⭕ 正解" : "❌ 不正解"}
-        </span>
-      </p>
-    `;
-  });
-
-  html += `
-    <hr>
-    <p><b>正答数：</b>${data.score} / 20</p>
-    <p><b>次回学習日：</b><br>
-       ${new Date(data.next_time).toLocaleString()}</p>
-  `;
-
-  document.getElementById("main").innerHTML = html;
+function setStatus(t) {
+  document.getElementById("status").innerText = t;
 }
 </script>
 </body>
