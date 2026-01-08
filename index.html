@@ -3,10 +3,11 @@
 <head>
 <meta charset="utf-8">
 <title>記憶実験</title>
+<meta name="viewport" content="width=device-width">
 <style>
-body { font-family: sans-serif; padding: 20px; }
-button { font-size: 16px; }
-.loading { color: blue; }
+  .ok { color: green; }
+  .ng { color: red; }
+  .box { margin-top: 10px; padding: 8px; background: #f4f4f4; }
 </style>
 </head>
 
@@ -18,70 +19,115 @@ button { font-size: 16px; }
 const WEBAPP_URL =
 "https://script.google.com/macros/s/AKfycbwg8kL5Pcx82IqaLx8OdRXDm_XZ0xEbdJ1iWZCCzxhhBee99yJlqJjRLEpI2Qk3uTkkRw/exec";
 
+const QUESTIONS = [
+  "ubiquitous","meticulous","ambiguous","cognitive","inevitable",
+  "arbitrary","plausible","coherent","salient","implicit"
+];
+
 let subject_id = localStorage.getItem("subject_id");
-let startTime = null;
+let index = 0;
+let answers = [];
 
-if (!subject_id) showId();
-else load();
-
-function showId() {
+if (!subject_id) {
   document.getElementById("main").innerHTML = `
     <input id="sid" placeholder="S01">
-    <button onclick="saveId()">開始</button>
+    <button onclick="start()">開始</button>
+  `;
+} else {
+  showQuestion();
+}
+
+function start() {
+  subject_id = document.getElementById("sid").value;
+  localStorage.setItem("subject_id", subject_id);
+  showQuestion();
+}
+
+function showQuestion() {
+  document.getElementById("main").innerHTML = `
+    <p>${index + 1} / 10</p>
+    <p><b>${QUESTIONS[index]}</b></p>
+    <input id="ans">
+    <button onclick="check()">回答</button>
   `;
 }
 
-function saveId() {
-  subject_id = document.getElementById("sid").value.trim();
-  localStorage.setItem("subject_id", subject_id);
-  load();
+function check() {
+  const ans = document.getElementById("ans").value;
+  answers.push(ans);
+
+  const correct = getCorrect(index);
+  const ok = ans === correct;
+
+  document.getElementById("main").innerHTML += `
+    <div class="box">
+      <p>あなた：${ans}</p>
+      <p>正解：${correct}</p>
+      <p class="${ok ? "ok" : "ng"}">
+        ${ok ? "⭕ 正解" : "❌ 不正解"}
+      </p>
+      <button onclick="next()">次へ</button>
+    </div>
+  `;
 }
 
-async function load() {
-  document.getElementById("main").innerHTML =
-    "<p class='loading'>通信中…</p>";
+function next() {
+  index++;
+  if (index < QUESTIONS.length) {
+    showQuestion();
+  } else {
+    finish();
+  }
+}
 
+async function finish() {
   const res = await fetch(WEBAPP_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ subject_id })
+    body: JSON.stringify({
+      subject_id: subject_id,
+      answers: answers
+    })
   });
 
   const data = await res.json();
 
-  if (data.status === "do") {
-    startTime = Date.now();
-    document.getElementById("main").innerHTML = `
-      <p>Day ${data.day}</p>
-      <p>${data.question}</p>
-      <input id="ans">
-      <button onclick="send()">送信</button>
+  let html = "<h3>結果一覧</h3>";
+  data.detail.forEach((d, i) => {
+    html += `
+      <p>
+        ${i + 1}. ${d.question}<br>
+        あなた：${d.your}<br>
+        正解：${d.correct}<br>
+        <span class="${d.ok ? "ok" : "ng"}">
+          ${d.ok ? "⭕ 正解" : "❌ 不正解"}
+        </span>
+      </p>
     `;
-  }
-
-  if (data.status === "saved") {
-    document.getElementById("main").innerHTML =
-      "<p>保存しました。次回は24時間後です。</p>";
-  }
-}
-
-async function send() {
-  const ans = document.getElementById("ans").value;
-  const rt = Math.floor((Date.now() - startTime) / 1000);
-  const correct = ans.toLowerCase().includes("捨てる") ? 1 : 0;
-
-  await fetch(WEBAPP_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      subject_id,
-      answer: ans,
-      correct,
-      rt
-    })
   });
 
-  load();
+  html += `
+    <hr>
+    <p><b>正答数：</b>${data.score} / 10</p>
+    <p><b>次回学習日：</b>${new Date(data.next_date).toLocaleDateString()}</p>
+  `;
+
+  document.getElementById("main").innerHTML = html;
+}
+
+function getCorrect(i) {
+  const map = {
+    0: "至る所にある",
+    1: "細心の注意を払う",
+    2: "曖昧な",
+    3: "認知の",
+    4: "避けられない",
+    5: "恣意的な",
+    6: "もっともらしい",
+    7: "首尾一貫した",
+    8: "顕著な",
+    9: "暗黙の"
+  };
+  return map[i];
 }
 </script>
 </body>
