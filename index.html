@@ -3,11 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>記憶実験</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-body { font-family: sans-serif; margin: 20px; }
-input, button { font-size: 16px; padding: 6px; }
-</style>
+<meta name="viewport" content="width=device-width">
 </head>
 
 <body>
@@ -20,27 +16,29 @@ const WEBAPP_URL =
 
 let subject_id = localStorage.getItem("subject_id");
 
-if (!subject_id) showId();
-else check();
-
-function showId() {
+if (!subject_id) {
   document.getElementById("main").innerHTML = `
-    <p>IDを入力</p>
     <input id="sid">
-    <button onclick="save()">開始</button>
+    <button onclick="start()">開始</button>
   `;
+} else {
+  check();
 }
 
-function save() {
-  subject_id = document.getElementById("sid").value.trim();
+function start() {
+  subject_id = document.getElementById("sid").value;
   localStorage.setItem("subject_id", subject_id);
   check();
 }
 
-async function check() {
+async function check(answer) {
+  const body = answer
+    ? { subject_id, answer }
+    : { subject_id };
+
   const res = await fetch(WEBAPP_URL, {
     method: "POST",
-    body: JSON.stringify({ subject_id })
+    body: JSON.stringify(body)
   });
   const data = await res.json();
 
@@ -49,32 +47,27 @@ async function check() {
       <p>${data.question}</p>
       <input id="ans">
       <button onclick="send()">送信</button>
+      <p>${data.index + 1} / 20</p>
     `;
   }
 
-  if (data.status === "wait") {
-    document.getElementById("main").innerHTML =
-      "まだ学習できません<br>" +
-      new Date(data.next_time).toLocaleString();
-  }
-
   if (data.status === "finished") {
-    document.getElementById("main").innerHTML =
-      "全問題終了";
+    let html = "<h3>結果</h3>";
+    data.answers.forEach((a, i) => {
+      html += `
+        <p>
+          ${i+1}. ${a.q}<br>
+          正解：${a.correct}<br>
+          あなた：${a.your} ${a.ok ? "⭕" : "❌"}
+        </p>`;
+    });
+    document.getElementById("main").innerHTML = html;
   }
 }
 
-async function send() {
+function send() {
   const ans = document.getElementById("ans").value;
-  const res = await fetch(WEBAPP_URL, {
-    method: "POST",
-    body: JSON.stringify({
-      subject_id,
-      answer: ans
-    })
-  });
-  const data = await res.json();
-  check();
+  check(ans);
 }
 </script>
 </body>
