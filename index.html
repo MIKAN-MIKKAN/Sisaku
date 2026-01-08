@@ -2,11 +2,16 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<title>英単語記憶実験</title>
+<title>記憶実験</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body { font-family: sans-serif; margin: 20px; }
+input, button { font-size: 16px; padding: 6px; }
+</style>
 </head>
 
 <body>
-<h2>英単語記憶実験</h2>
+<h2>記憶実験</h2>
 <div id="main"></div>
 
 <script>
@@ -15,17 +20,19 @@ const WEBAPP_URL =
 
 let subject_id = localStorage.getItem("subject_id");
 
-if (!subject_id) {
+if (!subject_id) showId();
+else check();
+
+function showId() {
   document.getElementById("main").innerHTML = `
-    <input id="sid" placeholder="ID">
+    <p>IDを入力</p>
+    <input id="sid">
     <button onclick="save()">開始</button>
   `;
-} else {
-  check();
 }
 
 function save() {
-  subject_id = document.getElementById("sid").value;
+  subject_id = document.getElementById("sid").value.trim();
   localStorage.setItem("subject_id", subject_id);
   check();
 }
@@ -39,8 +46,7 @@ async function check() {
 
   if (data.status === "do") {
     document.getElementById("main").innerHTML = `
-      <p>問題 ${data.q_index + 1}/20</p>
-      <b>${data.question}</b><br>
+      <p>${data.question}</p>
       <input id="ans">
       <button onclick="send()">送信</button>
     `;
@@ -48,26 +54,26 @@ async function check() {
 
   if (data.status === "wait") {
     document.getElementById("main").innerHTML =
-      "まだ学習できません";
+      "まだ学習できません<br>" +
+      new Date(data.next_time).toLocaleString();
   }
 
   if (data.status === "finished") {
     document.getElementById("main").innerHTML =
-      "全問終了です";
+      "全問題終了";
   }
 }
 
 async function send() {
   const ans = document.getElementById("ans").value;
-
-  await fetch(WEBAPP_URL, {
+  const res = await fetch(WEBAPP_URL, {
     method: "POST",
     body: JSON.stringify({
       subject_id,
       answer: ans
     })
   });
-
+  const data = await res.json();
   check();
 }
 </script>
