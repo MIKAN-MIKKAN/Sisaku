@@ -2,121 +2,86 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<title>Day1 学習</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>記憶実験</title>
 <style>
-body {
-  font-family: sans-serif;
-  background: #f9f9f9;
-  padding: 20px;
-}
-.card {
-  background: #fff;
-  padding: 20px;
-  border-radius: 8px;
-  max-width: 500px;
-  margin: auto;
-}
-.word {
-  font-size: 28px;
-  font-weight: bold;
-}
-.meaning {
-  margin-top: 10px;
-  font-size: 18px;
-  color: #444;
-}
-input {
-  width: 100%;
-  font-size: 18px;
-  padding: 8px;
-  margin-top: 15px;
-}
-button {
-  margin-top: 15px;
-  width: 100%;
-  padding: 10px;
-  font-size: 18px;
-}
-#status {
-  text-align: center;
-  margin-top: 15px;
-  color: #666;
-}
+body { font-family: sans-serif; padding: 20px; }
+button { font-size: 16px; }
+.loading { color: blue; }
 </style>
 </head>
 
 <body>
-<div class="card">
-  <h2>Day1 学習</h2>
-  <div id="main">読み込み中…</div>
-  <div id="status"></div>
-</div>
+<h2>記憶実験</h2>
+<div id="main"></div>
 
 <script>
 const WEBAPP_URL =
 "https://script.google.com/macros/s/AKfycbwg8kL5Pcx82IqaLx8OdRXDm_XZ0xEbdJ1iWZCCzxhhBee99yJlqJjRLEpI2Qk3uTkkRw/exec";
 
-let index = 0;
-let words = [];
 let subject_id = localStorage.getItem("subject_id");
+let startTime = null;
 
-if (!subject_id) {
-  subject_id = prompt("被験者IDを入力してください");
-  localStorage.setItem("subject_id", subject_id);
+if (!subject_id) showId();
+else load();
+
+function showId() {
+  document.getElementById("main").innerHTML = `
+    <input id="sid" placeholder="S01">
+    <button onclick="saveId()">開始</button>
+  `;
 }
 
-loadWords();
+function saveId() {
+  subject_id = document.getElementById("sid").value.trim();
+  localStorage.setItem("subject_id", subject_id);
+  load();
+}
 
-async function loadWords() {
-  setStatus("通信中…");
+async function load() {
+  document.getElementById("main").innerHTML =
+    "<p class='loading'>通信中…</p>";
+
   const res = await fetch(WEBAPP_URL, {
     method: "POST",
-    body: JSON.stringify({ mode: "day1", subject_id })
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ subject_id })
   });
-  const data = await res.json();
-  words = data.words;
-  show();
-}
 
-function show() {
-  if (index >= words.length) {
-    document.getElementById("main").innerHTML =
-      "<b>Day1 学習が完了しました。</b>";
-    setStatus("");
-    return;
+  const data = await res.json();
+
+  if (data.status === "do") {
+    startTime = Date.now();
+    document.getElementById("main").innerHTML = `
+      <p>Day ${data.day}</p>
+      <p>${data.question}</p>
+      <input id="ans">
+      <button onclick="send()">送信</button>
+    `;
   }
 
-  const w = words[index];
-  document.getElementById("main").innerHTML = `
-    <div class="word">${w.word}</div>
-    <div class="meaning">${w.meaning}</div>
-    <input id="ans" placeholder="上の意味を入力して写してください">
-    <button onclick="next()">次へ (${index+1}/${words.length})</button>
-  `;
-  setStatus("");
+  if (data.status === "saved") {
+    document.getElementById("main").innerHTML =
+      "<p>保存しました。次回は24時間後です。</p>";
+  }
 }
 
-async function next() {
+async function send() {
   const ans = document.getElementById("ans").value;
-  setStatus("保存中…");
+  const rt = Math.floor((Date.now() - startTime) / 1000);
+  const correct = ans.toLowerCase().includes("捨てる") ? 1 : 0;
 
   await fetch(WEBAPP_URL, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      mode: "save_day1",
       subject_id,
-      q_index: index,
-      answer: ans
+      answer: ans,
+      correct,
+      rt
     })
   });
 
-  index++;
-  show();
-}
-
-function setStatus(t) {
-  document.getElementById("status").innerText = t;
+  load();
 }
 </script>
 </body>
