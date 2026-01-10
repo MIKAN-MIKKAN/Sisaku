@@ -20,74 +20,96 @@ const WEBAPP_URL =
 "https://script.google.com/macros/s/AKfycbwg8kL5Pcx82IqaLx8OdRXDm_XZ0xEbdJ1iWZCCzxhhBee99yJlqJjRLEpI2Qk3uTkkRw/exec";
 
 const QUESTIONS = [
-  "ubiquitous","meticulous","ambiguous","cognitive","inevitable",
-  "arbitrary","plausible","coherent","salient","implicit"
+  { q: "ubiquitous", a: "至る所にある" },
+  { q: "meticulous", a: "細心の注意を払う" },
+  { q: "ambiguous", a: "曖昧な" },
+  { q: "cognitive", a: "認知の" },
+  { q: "inevitable", a: "避けられない" },
+  { q: "arbitrary", a: "恣意的な" },
+  { q: "plausible", a: "もっともらしい" },
+  { q: "coherent", a: "首尾一貫した" },
+  { q: "salient", a: "顕著な" },
+  { q: "implicit", a: "暗黙の" }
 ];
 
-let subject_id = localStorage.getItem("subject_id");
+let subject_id = null;
+let session = null;
 let index = 0;
 let answers = [];
-let session = "test"; // initial / review / test
+let answered = false;
 
 init();
 
 function init() {
-  if (!subject_id) {
-    document.getElementById("main").innerHTML = `
-      <input id="sid" placeholder="A01 または B01">
-      <select id="session">
-        <option value="initial">初回学習</option>
-        <option value="review">復習</option>
-        <option value="test" selected>テスト</option>
-      </select>
-      <button onclick="start()">開始</button>
-    `;
-  } else {
-    showQuestion();
-  }
+  document.getElementById("main").innerHTML = `
+    <input id="sid" placeholder="A01 または B01"><br><br>
+    <select id="session">
+      <option value="initial">初回学習</option>
+      <option value="review">復習</option>
+      <option value="test" selected>テスト</option>
+    </select><br><br>
+    <button onclick="start()">開始</button>
+  `;
 }
 
 function start() {
-  const sid = document.getElementById("sid").value.trim();
-  if (!/^([AB][0-9]{2})$/.test(sid)) {
+  subject_id = document.getElementById("sid").value.trim();
+  session = document.getElementById("session").value;
+
+  if (!/^([AB][0-9]{2})$/.test(subject_id)) {
     alert("IDは A01 / B01 の形式で入力してください");
     return;
   }
-  subject_id = sid;
-  session = document.getElementById("session").value;
-  localStorage.setItem("subject_id", subject_id);
   showQuestion();
 }
 
 function showQuestion() {
-  document.getElementById("main").innerHTML = `
-    <p>${index + 1} / ${QUESTIONS.length}</p>
-    <p><b>${QUESTIONS[index]}</b></p>
-    <input id="ans">
-    <button onclick="check()">回答</button>
-  `;
+  answered = false;
+  const item = QUESTIONS[index];
+
+  if (session === "initial") {
+    document.getElementById("main").innerHTML = `
+      <p>${index + 1} / ${QUESTIONS.length}</p>
+      <p><b>${item.q}</b></p>
+      <p>答え：<b>${item.a}</b></p>
+      <button onclick="next()">次へ</button>
+    `;
+  } else {
+    document.getElementById("main").innerHTML = `
+      <p>${index + 1} / ${QUESTIONS.length}</p>
+      <p><b>${item.q}</b></p>
+      <input id="ans">
+      <button onclick="check()">回答</button>
+    `;
+  }
 }
 
 function check() {
-  const ans = document.getElementById("ans").value.trim();
-  answers.push(ans);
+  if (answered) return;
+  answered = true;
 
-  const correct = getCorrect(index);
+  const ans = document.getElementById("ans").value.trim();
+  const correct = QUESTIONS[index].a;
   const ok = ans === correct;
 
-  document.getElementById("main").innerHTML += `
-    <div class="box">
-      <p>あなた：${ans}</p>
-      <p>正解：${correct}</p>
-      <p class="${ok ? "ok" : "ng"}">
-        ${ok ? "⭕ 正解" : "❌ 不正解"}
-      </p>
-      <button onclick="next()">次へ</button>
-    </div>
+  answers.push(ans);
+
+  document.getElementById("main").innerHTML = `
+    <p><b>${QUESTIONS[index].q}</b></p>
+    <p>あなた：${ans}</p>
+    <p>正解：${correct}</p>
+    <p class="${ok ? "ok" : "ng"}">
+      ${ok ? "⭕ 正解" : "❌ 不正解"}
+    </p>
+    <button onclick="next()">次へ</button>
   `;
 }
 
 function next() {
+  if (session === "initial") {
+    answers.push(QUESTIONS[index].a); // 学習扱い
+  }
+
   index++;
   if (index < QUESTIONS.length) {
     showQuestion();
@@ -100,29 +122,19 @@ async function finish() {
   const res = await fetch(WEBAPP_URL, {
     method: "POST",
     body: JSON.stringify({
-      subject_id: subject_id,
-      session: session,
-      answers: answers
+      subject_id,
+      session,
+      answers
     })
   });
 
   const data = await res.json();
 
-  let html = `<h3>結果</h3>`;
-  html += `<p>グループ：${data.group}</p>`;
-  html += `<p>正答数：${data.score} / ${QUESTIONS.length}</p>`;
-  html += `<p>記憶保持率：${(data.retention * 100).toFixed(1)}%</p>`;
-  html += `<p>次回学習日：${new Date(data.next_date).toLocaleDateString()}</p>`;
-
-  document.getElementById("main").innerHTML = html;
-}
-
-function getCorrect(i) {
-  const map = [
-    "至る所にある","細心の注意を払う","曖昧な","認知の","避けられない",
-    "恣意的な","もっともらしい","首尾一貫した","顕著な","暗黙の"
-  ];
-  return map[i];
+  document.getElementById("main").innerHTML = `
+    <h3>完了</h3>
+    <p>正答率：${(data.retention * 100).toFixed(1)}%</p>
+    <p>次回学習日：${new Date(data.next_date).toLocaleDateString()}</p>
+  `;
 }
 </script>
 </body>
