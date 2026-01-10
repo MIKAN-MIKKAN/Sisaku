@@ -7,12 +7,10 @@
 <style>
   textarea {
     width: 100%;
-    height: 60px;
+    height: 50px;
     font-size: 16px;
     margin-bottom: 10px;
   }
-  .ok { color: green; }
-  .ng { color: red; }
 </style>
 </head>
 
@@ -68,22 +66,20 @@ function start() {
 }
 
 function showQuestion() {
-  answered = false;
   const item = QUESTIONS[index];
 
   if (session === "initial") {
     document.getElementById("main").innerHTML = `
       <p>${index + 1} / ${QUESTIONS.length}</p>
 
-      <p><b>問題（英語）</b></p>
+      <p><b>英単語</b></p>
       <p>${item.q}</p>
-      <textarea placeholder="英単語を書き写す"></textarea>
+      <textarea placeholder="英単語を書き写す（確認用）"></textarea>
 
       <p><b>意味（日本語）</b></p>
-      <p>${item.a}</p>
-      <textarea placeholder="意味を書き写す"></textarea>
+      <textarea id="meaningInput" placeholder="意味を正確に入力"></textarea>
 
-      <button onclick="next()">次へ</button>
+      <button onclick="checkInitial()">次へ</button>
     `;
   } else {
     document.getElementById("main").innerHTML = `
@@ -95,26 +91,37 @@ function showQuestion() {
   }
 }
 
+function checkInitial() {
+  const input = document.getElementById("meaningInput").value.trim();
+  const correct = QUESTIONS[index].a;
+
+  if (input !== correct) {
+    alert("意味が正しくありません。もう一度確認してください。");
+    return;
+  }
+
+  answers.push(correct); // 学習済み扱い
+  index++;
+  if (index < QUESTIONS.length) showQuestion();
+  else finish();
+}
+
 function check() {
   if (answered) return;
   answered = true;
 
   const ans = document.getElementById("ans").value.trim();
-  const correct = QUESTIONS[index].a;
   answers.push(ans);
 
   document.getElementById("main").innerHTML = `
     <p>${QUESTIONS[index].q}</p>
     <p>あなた：${ans}</p>
-    <p>正解：${correct}</p>
+    <p>正解：${QUESTIONS[index].a}</p>
     <button onclick="next()">次へ</button>
   `;
 }
 
 function next() {
-  if (session === "initial") {
-    answers.push(QUESTIONS[index].a); // 学習扱い
-  }
   index++;
   if (index < QUESTIONS.length) showQuestion();
   else finish();
@@ -134,7 +141,7 @@ async function finish() {
 
   document.getElementById("main").innerHTML = `
     <h3>完了</h3>
-    <p>正答率：${(data.retention * 100).toFixed(1)}%</p>
+    <p>得点：${data.score} / ${QUESTIONS.length}</p>
     <p>次回学習日：${new Date(data.next_date).toLocaleDateString()}</p>
   `;
 }
