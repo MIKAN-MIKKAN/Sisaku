@@ -11,6 +11,8 @@
     font-size: 16px;
     margin-bottom: 10px;
   }
+  .ok { color: green; }
+  .ng { color: red; }
 </style>
 </head>
 
@@ -38,7 +40,6 @@ const QUESTIONS = [
 let subject_id, session;
 let index = 0;
 let answers = [];
-let answered = false;
 
 init();
 
@@ -59,7 +60,7 @@ function start() {
   session = document.getElementById("session").value;
 
   if (!/^([AB][0-9]{2})$/.test(subject_id)) {
-    alert("ID形式が不正です");
+    alert("IDは A01 / B01 の形式で入力してください");
     return;
   }
   showQuestion();
@@ -74,10 +75,12 @@ function showQuestion() {
 
       <p><b>英単語</b></p>
       <p>${item.q}</p>
-      <textarea placeholder="英単語を書き写す（確認用）"></textarea>
 
-      <p><b>意味（日本語）</b></p>
-      <textarea id="meaningInput" placeholder="意味を正確に入力"></textarea>
+      <p><b>答え（日本語）</b></p>
+      <p>${item.a}</p>
+
+      <p><b>書き写し欄</b></p>
+      <textarea id="writeInput" placeholder="日本語を書き写してください"></textarea>
 
       <button onclick="checkInitial()">次へ</button>
     `;
@@ -92,24 +95,21 @@ function showQuestion() {
 }
 
 function checkInitial() {
-  const input = document.getElementById("meaningInput").value.trim();
+  const input = document.getElementById("writeInput").value.trim();
   const correct = QUESTIONS[index].a;
 
   if (input !== correct) {
-    alert("意味が正しくありません。もう一度確認してください。");
+    alert("日本語の答えが正しくありません。正しく書いてください。");
     return;
   }
 
-  answers.push(correct); // 学習済み扱い
+  answers.push(correct); // 学習扱い
   index++;
   if (index < QUESTIONS.length) showQuestion();
   else finish();
 }
 
 function check() {
-  if (answered) return;
-  answered = true;
-
   const ans = document.getElementById("ans").value.trim();
   answers.push(ans);
 
