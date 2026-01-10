@@ -3,126 +3,126 @@
 <head>
 <meta charset="utf-8">
 <title>記憶実験</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width">
 <style>
-body {
-  font-family: sans-serif;
-  padding: 20px;
-}
-button {
-  font-size: 16px;
-  padding: 6px;
-}
-.loading {
-  color: blue;
-}
-.word {
-  font-size: 20px;
-  font-weight: bold;
-}
-.meaning {
-  margin-top: 6px;
-  background: #f2f2f2;
-  padding: 8px;
-}
+  .ok { color: green; }
+  .ng { color: red; }
+  .box { margin-top: 10px; padding: 8px; background: #f4f4f4; }
 </style>
 </head>
 
 <body>
-<h2>記憶実験（Day1）</h2>
+<h2>記憶実験</h2>
 <div id="main"></div>
 
 <script>
 const WEBAPP_URL =
 "https://script.google.com/macros/s/AKfycbwg8kL5Pcx82IqaLx8OdRXDm_XZ0xEbdJ1iWZCCzxhhBee99yJlqJjRLEpI2Qk3uTkkRw/exec";
 
+const QUESTIONS = [
+  "ubiquitous","meticulous","ambiguous","cognitive","inevitable",
+  "arbitrary","plausible","coherent","salient","implicit"
+];
+
 let subject_id = localStorage.getItem("subject_id");
-let startTime = null;
-let answered = false;
+let index = 0;
+let answers = [];
+let session = "test"; // initial / review / test
 
-if (!subject_id) showId();
-else load();
+init();
 
-function showId() {
+function init() {
+  if (!subject_id) {
+    document.getElementById("main").innerHTML = `
+      <input id="sid" placeholder="A01 または B01">
+      <select id="session">
+        <option value="initial">初回学習</option>
+        <option value="review">復習</option>
+        <option value="test" selected>テスト</option>
+      </select>
+      <button onclick="start()">開始</button>
+    `;
+  } else {
+    showQuestion();
+  }
+}
+
+function start() {
+  const sid = document.getElementById("sid").value.trim();
+  if (!/^([AB][0-9]{2})$/.test(sid)) {
+    alert("IDは A01 / B01 の形式で入力してください");
+    return;
+  }
+  subject_id = sid;
+  session = document.getElementById("session").value;
+  localStorage.setItem("subject_id", subject_id);
+  showQuestion();
+}
+
+function showQuestion() {
   document.getElementById("main").innerHTML = `
-    <p>被験者IDを入力してください</p>
-    <input id="sid" placeholder="S01">
-    <br>
-    <button onclick="saveId()">開始</button>
+    <p>${index + 1} / ${QUESTIONS.length}</p>
+    <p><b>${QUESTIONS[index]}</b></p>
+    <input id="ans">
+    <button onclick="check()">回答</button>
   `;
 }
 
-function saveId() {
-  subject_id = document.getElementById("sid").value.trim();
-  localStorage.setItem("subject_id", subject_id);
-  load();
+function check() {
+  const ans = document.getElementById("ans").value.trim();
+  answers.push(ans);
+
+  const correct = getCorrect(index);
+  const ok = ans === correct;
+
+  document.getElementById("main").innerHTML += `
+    <div class="box">
+      <p>あなた：${ans}</p>
+      <p>正解：${correct}</p>
+      <p class="${ok ? "ok" : "ng"}">
+        ${ok ? "⭕ 正解" : "❌ 不正解"}
+      </p>
+      <button onclick="next()">次へ</button>
+    </div>
+  `;
 }
 
-async function load() {
-  document.getElementById("main").innerHTML =
-    "<p class='loading'>通信中…</p>";
+function next() {
+  index++;
+  if (index < QUESTIONS.length) {
+    showQuestion();
+  } else {
+    finish();
+  }
+}
 
+async function finish() {
   const res = await fetch(WEBAPP_URL, {
     method: "POST",
-    body: JSON.stringify({ subject_id })
+    body: JSON.stringify({
+      subject_id: subject_id,
+      session: session,
+      answers: answers
+    })
   });
 
   const data = await res.json();
 
-  if (data.status === "do") {
-    answered = false;
-    startTime = Date.now();
+  let html = `<h3>結果</h3>`;
+  html += `<p>グループ：${data.group}</p>`;
+  html += `<p>正答数：${data.score} / ${QUESTIONS.length}</p>`;
+  html += `<p>記憶保持率：${(data.retention * 100).toFixed(1)}%</p>`;
+  html += `<p>次回学習日：${new Date(data.next_date).toLocaleDateString()}</p>`;
 
-    document.getElementById("main").innerHTML = `
-      <p>Day ${data.day}</p>
-
-      <div class="word">${data.word_en}</div>
-      <div class="meaning">${data.word_ja}</div>
-
-      <p>下に写してください（覚えるため）</p>
-      <input id="ans">
-      <br>
-      <button id="sendBtn" onclick="send()">回答</button>
-    `;
-  }
-
-  if (data.status === "saved") {
-    const t = new Date(data.next_time);
-    document.getElementById("main").innerHTML = `
-      <p>保存しました。</p>
-      <p><b>次回学習日：</b><br>${t.toLocaleString()}</p>
-    `;
-  }
-
-  if (data.status === "error") {
-    document.getElementById("main").innerHTML =
-      "<p>エラーが発生しました</p>";
-  }
+  document.getElementById("main").innerHTML = html;
 }
 
-async function send() {
-  if (answered) return;
-  answered = true;
-
-  const btn = document.getElementById("sendBtn");
-  btn.disabled = true;
-
-  const ans = document.getElementById("ans").value;
-  const rt = Math.floor((Date.now() - startTime) / 1000);
-
-  document.getElementById("main").innerHTML +=
-    "<p class='loading'>通信中…</p>";
-
-  await fetch(WEBAPP_URL, {
-    method: "POST",
-    body: JSON.stringify({
-      subject_id,
-      answer: ans,
-      rt
-    })
-  });
-
-  load();
+function getCorrect(i) {
+  const map = [
+    "至る所にある","細心の注意を払う","曖昧な","認知の","避けられない",
+    "恣意的な","もっともらしい","首尾一貫した","顕著な","暗黙の"
+  ];
+  return map[i];
 }
 </script>
 </body>
