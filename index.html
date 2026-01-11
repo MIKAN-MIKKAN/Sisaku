@@ -27,6 +27,7 @@ const QUESTIONS = [
 let subject_id = localStorage.getItem("subject_id");
 let index = 0;
 let answers = [];
+let start_time = "";
 
 if (!subject_id) {
   document.getElementById("main").innerHTML = `
@@ -34,12 +35,14 @@ if (!subject_id) {
     <button onclick="start()">開始</button>
   `;
 } else {
+  start_time = new Date().toISOString();
   showQuestion();
 }
 
 function start() {
   subject_id = document.getElementById("sid").value;
   localStorage.setItem("subject_id", subject_id);
+  start_time = new Date().toISOString();
   showQuestion();
 }
 
@@ -53,6 +56,9 @@ function showQuestion() {
 }
 
 function check() {
+  const btn = document.querySelector("button");
+  btn.disabled = true;   // ★ 二重送信防止
+
   const ans = document.getElementById("ans").value;
   answers.push(ans);
 
@@ -81,11 +87,15 @@ function next() {
 }
 
 async function finish() {
+  const end_time = new Date().toISOString();
+
   const res = await fetch(WEBAPP_URL, {
     method: "POST",
     body: JSON.stringify({
       subject_id: subject_id,
-      answers: answers
+      answers: answers,
+      start_time: start_time,
+      end_time: end_time
     })
   });
 
