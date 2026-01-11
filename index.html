@@ -11,8 +11,6 @@
     font-size: 16px;
     margin-bottom: 10px;
   }
-  .ok { color: green; }
-  .ng { color: red; }
 </style>
 </head>
 
@@ -79,8 +77,7 @@ function showQuestion() {
       <p><b>答え（日本語）</b></p>
       <p>${item.a}</p>
 
-      <p><b>書き写し欄</b></p>
-      <textarea id="writeInput" placeholder="日本語を書き写してください"></textarea>
+      <textarea id="writeInput" placeholder="日本語を正しく書き写してください"></textarea>
 
       <button onclick="checkInitial()">次へ</button>
     `;
@@ -99,11 +96,11 @@ function checkInitial() {
   const correct = QUESTIONS[index].a;
 
   if (input !== correct) {
-    alert("日本語の答えが正しくありません。正しく書いてください。");
+    alert("日本語の答えが正しくありません。");
     return;
   }
 
-  answers.push(correct); // 学習扱い
+  answers.push(correct);
   index++;
   if (index < QUESTIONS.length) showQuestion();
   else finish();
@@ -130,6 +127,7 @@ function next() {
 async function finish() {
   const res = await fetch(WEBAPP_URL, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       subject_id,
       session,
@@ -137,12 +135,23 @@ async function finish() {
     })
   });
 
+  if (!res.ok) {
+    document.getElementById("main").innerHTML =
+      "<p>通信エラーが発生しました</p>";
+    return;
+  }
+
   const data = await res.json();
+
+  let nextDateText = "取得できませんでした";
+  if (data.next_date) {
+    nextDateText = new Date(data.next_date).toLocaleDateString();
+  }
 
   document.getElementById("main").innerHTML = `
     <h3>完了</h3>
     <p>得点：${data.score} / ${QUESTIONS.length}</p>
-    <p>次回学習日：${new Date(data.next_date).toLocaleDateString()}</p>
+    <p>次回学習日：${nextDateText}</p>
   `;
 }
 </script>
