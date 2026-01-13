@@ -8,10 +8,11 @@
   .ok { color: green; }
   .ng { color: red; }
   textarea { width:100%; height:60px; }
+  .box { background:#f4f4f4; padding:8px; margin-top:8px; }
 </style>
 </head>
-
 <body>
+
 <h2>記憶実験</h2>
 <div id="main"></div>
 
@@ -32,77 +33,76 @@ const QUESTIONS = [
   ["implicit","暗黙の"]
 ];
 
-let subject_id;
-let mode;
-let index = 0;
-let answers = [];
-let start_time;
+let subject_id, mode, index=0;
+let answers=[], start_time;
+let details=[];
 
 document.getElementById("main").innerHTML = `
-  <input id="sid" placeholder="A01 / B01"><br>
-  <button onclick="start('first')">初回学習</button>
-  <button onclick="start('review')">復習</button>
-  <button onclick="start('test')">テスト</button>
+<input id="sid" placeholder="A01 / B01"><br>
+<button onclick="start('first')">初回学習</button>
+<button onclick="start('review')">復習</button>
+<button onclick="start('test')">テスト</button>
 `;
 
 function start(m){
-  subject_id = document.getElementById("sid").value;
-  if(!/^([AB][0-9]{2})$/.test(subject_id)){
-    alert("ID不正");
-    return;
-  }
-  mode = m;
-  index = 0;
-  answers = [];
-  start_time = new Date().toISOString();
+  subject_id=document.getElementById("sid").value;
+  if(!/^([AB][0-9]{2})$/.test(subject_id)){ alert("ID不正"); return; }
+  mode=m; index=0; answers=[]; details=[];
+  start_time=new Date().toISOString();
   show();
 }
 
 function show(){
-  const [q,a] = QUESTIONS[index];
-  let html = `<p>${index+1}/10</p><b>${q}</b><br>`;
-
-  if(mode === "first"){
-    html += `<p>${a}</p>`;
-  }
-
-  html += `
-    <textarea id="ans"></textarea>
-    <button onclick="next()">次へ</button>
-  `;
-  document.getElementById("main").innerHTML = html;
+  const [q,a]=QUESTIONS[index];
+  let html=`<p>${index+1}/10</p><b>${q}</b><br>`;
+  if(mode==="first") html+=`<p>${a}</p>`;
+  html+=`<textarea id="ans"></textarea>
+          <button onclick="next()">次へ</button>`;
+  document.getElementById("main").innerHTML=html;
 }
 
 function next(){
-  const input = document.getElementById("ans").value.trim();
-  if(mode === "first" && input !== QUESTIONS[index][1]){
-    alert("正しく書いてください");
-    return;
+  const input=document.getElementById("ans").value.trim();
+  if(mode==="first" && input!==QUESTIONS[index][1]){
+    alert("正しく書いてください"); return;
   }
   answers.push(input);
+  if(mode==="review"){
+    const ok=input===QUESTIONS[index][1];
+    details.push({q:QUESTIONS[index][0],your:input,correct:QUESTIONS[index][1],ok});
+  }
   index++;
-  if(index < QUESTIONS.length) show();
-  else finish();
+  if(index<10) show(); else finish();
 }
 
 async function finish(){
-  const res = await fetch(WEBAPP_URL,{
+  const res=await fetch(WEBAPP_URL,{
     method:"POST",
-    body:JSON.stringify({
-      subject_id,
-      answers,
-      mode,
-      start_time
-    })
+    body:JSON.stringify({subject_id,answers,mode,start_time})
   });
+  const data=await res.json();
 
-  const data = await res.json();
+  let html=`<h3>得点 ${data.score}/10</h3>`;
 
-  let html = `<h3>得点 ${data.score}/10</h3>`;
-  if(data.next_date){
-    html += `<p>次回学習日：${new Date(data.next_date).toLocaleDateString()}</p>`;
+  if(mode==="review"){
+    html+="<h4>結果一覧</h4>";
+    data.detail.forEach((d,i)=>{
+      html+=`<div class="box">
+        ${i+1}. ${d.question}<br>
+        あなた：${d.your}<br>
+        正解：${d.correct}<br>
+        <span class="${d.ok?"ok":"ng"}">
+          ${d.ok?"⭕ 正解":"❌ 不正解"}
+        </span>
+      </div>`;
+    });
   }
-  document.getElementById("main").innerHTML = html;
+
+  if(data.next_date){
+    html+=`<p><b>次回学習日：</b>${new Date(data.next_date).toLocaleDateString()}</p>`;
+  }
+
+  document.getElementById("main").innerHTML=html;
 }
 </script>
 </body>
