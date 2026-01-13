@@ -4,106 +4,121 @@
 <meta charset="utf-8">
 <title>記憶実験</title>
 <meta name="viewport" content="width=device-width">
+
 <style>
+  body { font-family: sans-serif; }
   .ok { color: green; }
   .ng { color: red; }
-  textarea { width:100%; height:60px; }
-  .box { background:#f4f4f4; padding:8px; margin-top:8px; }
+  .box { margin-top: 10px; padding: 8px; background: #f4f4f4; }
+  button { margin-top: 8px; }
 </style>
 </head>
-<body>
 
+<body>
 <h2>記憶実験</h2>
 <div id="main"></div>
 
 <script>
+// ===== あなたが今使っている WebApp URL =====
 const WEBAPP_URL =
 "https://script.google.com/macros/s/AKfycbwg8kL5Pcx82IqaLx8OdRXDm_XZ0xEbdJ1iWZCCzxhhBee99yJlqJjRLEpI2Qk3uTkkRw/exec";
 
+// ===== 問題 =====
 const QUESTIONS = [
-  ["ubiquitous","至る所にある"],
-  ["meticulous","細心の注意を払う"],
-  ["ambiguous","曖昧な"],
-  ["cognitive","認知の"],
-  ["inevitable","避けられない"],
-  ["arbitrary","恣意的な"],
-  ["plausible","もっともらしい"],
-  ["coherent","首尾一貫した"],
-  ["salient","顕著な"],
-  ["implicit","暗黙の"]
+  "ubiquitous","meticulous","ambiguous","cognitive","inevitable",
+  "arbitrary","plausible","coherent","salient","implicit"
 ];
 
-let subject_id, mode;
+// ===== 正解 =====
+const CORRECT = [
+  "至る所にある",
+  "細心の注意を払う",
+  "曖昧な",
+  "認知の",
+  "避けられない",
+  "恣意的な",
+  "もっともらしい",
+  "首尾一貫した",
+  "顕著な",
+  "暗黙の"
+];
+
+let subject_id = localStorage.getItem("subject_id");
 let index = 0;
 let answers = [];
-let start_time;
+let mode = "learn"; // learn / review / test
+let start_time = new Date().toISOString();
+let locked = false;
 
-document.getElementById("main").innerHTML = `
-<input id="sid" placeholder="A01 / B01"><br>
-<button onclick="start('first')">初回学習</button>
-<button onclick="start('review')">復習</button>
-<button onclick="start('test')">テスト</button>
-`;
+// ===== 初期画面 =====
+init();
 
+function init(){
+  document.getElementById("main").innerHTML = `
+    <input id="sid" placeholder="A01 / B01">
+    <br>
+    <button onclick="start('learn')">初回学習</button>
+    <button onclick="start('review')">復習</button>
+    <button onclick="start('test')">テスト</button>
+  `;
+}
+
+// ===== 開始 =====
 function start(m){
   subject_id = document.getElementById("sid").value;
   if(!/^([AB][0-9]{2})$/.test(subject_id)){
-    alert("ID不正"); return;
+    alert("ID不正（A01 / B01）");
+    return;
   }
+  localStorage.setItem("subject_id", subject_id);
   mode = m;
   index = 0;
   answers = [];
-  start_time = new Date().toISOString();
   showQuestion();
 }
 
+// ===== 問題表示 =====
 function showQuestion(){
-  const [q,a] = QUESTIONS[index];
-  let html = `<p>${index+1}/10</p><b>${q}</b><br>`;
-  if(mode === "first"){
-    html += `<p>${a}</p>`;
-  }
-  html += `
-    <textarea id="ans"></textarea><br>
-    <button id="submitBtn" onclick="submitAnswer()">回答</button>
+  locked = false;
+  document.getElementById("main").innerHTML = `
+    <p>${index+1} / 10</p>
+    <p><b>${QUESTIONS[index]}</b></p>
+    <input id="ans">
+    <br>
+    <button onclick="check()">回答</button>
   `;
-  document.getElementById("main").innerHTML = html;
 }
 
-function submitAnswer(){
-  const btn = document.getElementById("submitBtn");
-  if (btn.disabled) return;      // 二重送信防止
-  btn.disabled = true;
+// ===== 回答チェック =====
+function check(){
+  if(locked) return;
+  locked = true;
 
-  const input = document.getElementById("ans").value.trim();
-  const correct = QUESTIONS[index][1];
+  const ans = document.getElementById("ans").value.trim();
+  answers.push(ans);
 
-  if(mode === "first" && input !== correct){
-    alert("正しく書いてください");
-    btn.disabled = false;
-    return;
+  const correct = CORRECT[index];
+  const ok = ans === correct;
+
+  let html = `
+    <div class="box">
+      <p>あなた：${ans || "(無回答)"}</p>
+      <p>正解：${correct}</p>
+      <p class="${ok ? "ok" : "ng"}">
+        ${ok ? "⭕ 正解" : "❌ 不正解"}
+      </p>
+      <button onclick="next()">次へ</button>
+    </div>
+  `;
+
+  if(mode === "test"){
+    html = `<button onclick="next()">次へ</button>`;
   }
 
-  answers.push(input);
-
-  if(mode === "review"){
-    const ok = input === correct;
-    document.getElementById("main").innerHTML = `
-      <p>${index+1}/10</p><b>${QUESTIONS[index][0]}</b>
-      <div class="box">
-        あなた：${input}<br>
-        正解：${correct}<br>
-        <span class="${ok ? "ok" : "ng"}">
-          ${ok ? "⭕ 正解" : "❌ 不正解"}
-        </span><br>
-        <button onclick="next()">次へ</button>
-      </div>
-    `;
-  } else {
-    next();
-  }
+  document.getElementById("main").innerHTML += html;
 }
 
+// ===== 次へ =====
 function next(){
   index++;
   if(index < QUESTIONS.length){
@@ -113,6 +128,7 @@ function next(){
   }
 }
 
+// ===== 終了処理 =====
 async function finish(){
   const res = await fetch(WEBAPP_URL,{
     method:"POST",
@@ -123,11 +139,26 @@ async function finish(){
       start_time
     })
   });
+
   const data = await res.json();
 
-  let html = `<h3>得点 ${data.score}/10</h3>`;
+  let html = `<h3>結果一覧</h3>`;
 
-  // ===== 次回学習日（A群 & test以外のみ）=====
+  data.detail.forEach((d, i) => {
+    html += `
+      <p>
+        ${i+1}. ${d.question}<br>
+        あなた：${d.your || "(無回答)"}<br>
+        正解：${d.correct}<br>
+        <span class="${d.ok ? "ok" : "ng"}">
+          ${d.ok ? "⭕ 正解" : "❌ 不正解"}
+        </span>
+      </p>
+    `;
+  });
+
+  html += `<hr><p><b>得点：</b>${data.score} / 10</p>`;
+
   if(subject_id[0] === "A" && mode !== "test" && data.next_date){
     const d = new Date(data.next_date);
     if(!isNaN(d)){
