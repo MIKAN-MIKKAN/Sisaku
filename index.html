@@ -37,7 +37,10 @@ let subject_id = "";
 let mode = "learn";
 let index = 0;
 let answers = new Array(10);
-let locked = false;   // ← 連打完全防止
+
+// ロック系
+let locked = false;      // 1問内の多重操作防止
+let submitted = false;  // 結果送信の多重防止
 
 init();
 
@@ -51,36 +54,48 @@ function init(){
 }
 
 function start(m){
-  subject_id = document.getElementById("sid").value;
-  if(!/^([AB][0-9]{2})$/.test(subject_id)){
-    alert("ID不正"); return;
+  const sid = document.getElementById("sid").value;
+  if(!/^([AB][0-9]{2})$/.test(sid)){
+    alert("ID不正");
+    return;
   }
+  subject_id = sid;
   mode = m;
+
+  // 初期化
   index = 0;
   answers.fill("");
+  locked = false;
+  submitted = false;
+
   show();
 }
 
 function show(){
   locked = false;
-  const [q,a] = QUESTIONS[index];
 
+  const [q,a] = QUESTIONS[index];
   let html = `<p>${index+1} / 10</p><p><b>${q}</b></p>`;
-  if(mode === "learn") html += `<p>${a}</p>`;
+
+  if(mode === "learn"){
+    html += `<p>${a}</p>`;
+  }
 
   html += `
     <input id="ans">
     <button onclick="check()">回答</button>
   `;
+
   document.getElementById("main").innerHTML = html;
 }
 
 function check(){
-  if(locked) return;   // ← 核心
+  if(locked) return;
   locked = true;
 
   const input = document.getElementById("ans").value.trim();
   answers[index] = input;
+
   const correct = QUESTIONS[index][1];
   const ok = input === correct;
 
@@ -102,9 +117,14 @@ function check(){
 }
 
 function next(){
+  if(submitted) return; // 念のため
+
   index++;
-  if(index < 10) show();
-  else finish();
+  if(index < 10){
+    show();
+  } else {
+    finish();
+  }
 }
 
 /* ===== 論文準拠モデル ===== */
@@ -112,21 +132,29 @@ function next(){
 function calcParams(score){
   const accuracy = score / 10;
   const alpha = (subject_id[0] === "A") ? 0.6 : 0.9;
-  const beta = Math.max(0.05, 0.25 * (1 - accuracy)); // 下限保証
+  const beta = Math.max(0.05, 0.25 * (1 - accuracy));
   return { alpha, beta };
 }
 
-function calcNextDateTime(alpha, beta){
+function calcNextDateTimeInitial(){
+  const d = new Date();
+  d.setTime(d.getTime() + 12 * 60 * 60 * 1000); // 12時間後
+  return d;
+}
+
+function calcNextDateTimeModel(alpha, beta){
   const theta = 0.7;
   const t = Math.pow(-Math.log(theta) / beta, 1 / alpha); // days
   const ms = t * 24 * 60 * 60 * 1000;
-
   const d = new Date();
   d.setTime(d.getTime() + ms);
   return d;
 }
 
 async function finish(){
+  if(submitted) return;   // ★ ここが核心
+  submitted = true;
+
   let score = 0;
   for(let i=0;i<10;i++){
     if(answers[i] === QUESTIONS[i][1]) score++;
@@ -149,7 +177,10 @@ async function finish(){
   let html = `<h3>得点 ${score} / 10</h3>`;
 
   if(subject_id[0] === "A" && mode !== "test"){
-    const next = calcNextDateTime(alpha, beta);
+    const next = (mode === "learn")
+      ? calcNextDateTimeInitial()
+      : calcNextDateTimeModel(alpha, beta);
+
     html += `<p><b>次回学習日時：</b>${next.toLocaleString()}</p>`;
   }
 
