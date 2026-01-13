@@ -65,26 +65,31 @@ function showQuestion(){
   }
   html += `
     <textarea id="ans"></textarea><br>
-    <button onclick="submitAnswer()">回答</button>
+    <button id="submitBtn" onclick="submitAnswer()">回答</button>
   `;
   document.getElementById("main").innerHTML = html;
 }
 
 function submitAnswer(){
+  const btn = document.getElementById("submitBtn");
+  if (btn.disabled) return;      // 二重送信防止
+  btn.disabled = true;
+
   const input = document.getElementById("ans").value.trim();
   const correct = QUESTIONS[index][1];
 
   if(mode === "first" && input !== correct){
     alert("正しく書いてください");
+    btn.disabled = false;
     return;
   }
 
   answers.push(input);
 
-  // ===== 復習モードは即時フィードバック =====
   if(mode === "review"){
     const ok = input === correct;
-    document.getElementById("main").innerHTML += `
+    document.getElementById("main").innerHTML = `
+      <p>${index+1}/10</p><b>${QUESTIONS[index][0]}</b>
       <div class="box">
         あなた：${input}<br>
         正解：${correct}<br>
@@ -122,11 +127,12 @@ async function finish(){
 
   let html = `<h3>得点 ${data.score}/10</h3>`;
 
-  // ===== 次回学習日表示（A群 & test以外）=====
-  if(subject_id[0] === "A" && mode !== "test"){
-    html += `<p><b>次回学習日：</b>${
-      new Date(data.next_date).toLocaleDateString()
-    }</p>`;
+  // ===== 次回学習日（A群 & test以外のみ）=====
+  if(subject_id[0] === "A" && mode !== "test" && data.next_date){
+    const d = new Date(data.next_date);
+    if(!isNaN(d)){
+      html += `<p><b>次回学習日：</b>${d.toLocaleDateString()}</p>`;
+    }
   }
 
   document.getElementById("main").innerHTML = html;
