@@ -4,169 +4,124 @@
 <meta charset="utf-8">
 <title>記憶実験</title>
 <meta name="viewport" content="width=device-width">
-
 <style>
-  body { font-family: sans-serif; }
-  .ok { color: green; }
-  .ng { color: red; }
-  .box { margin-top: 10px; padding: 8px; background: #f4f4f4; }
-  button { margin-top: 8px; }
+  .ok{color:green}
+  .ng{color:red}
+  .box{margin-top:8px;padding:6px;background:#f4f4f4}
 </style>
 </head>
-
 <body>
+
 <h2>記憶実験</h2>
 <div id="main"></div>
 
 <script>
-// ===== あなたが今使っている WebApp URL =====
 const WEBAPP_URL =
 "https://script.google.com/macros/s/AKfycbwg8kL5Pcx82IqaLx8OdRXDm_XZ0xEbdJ1iWZCCzxhhBee99yJlqJjRLEpI2Qk3uTkkRw/exec";
 
-// ===== 問題 =====
 const QUESTIONS = [
-  "ubiquitous","meticulous","ambiguous","cognitive","inevitable",
-  "arbitrary","plausible","coherent","salient","implicit"
+ ["ubiquitous","至る所にある"],
+ ["meticulous","細心の注意を払う"],
+ ["ambiguous","曖昧な"],
+ ["cognitive","認知の"],
+ ["inevitable","避けられない"],
+ ["arbitrary","恣意的な"],
+ ["plausible","もっともらしい"],
+ ["coherent","首尾一貫した"],
+ ["salient","顕著な"],
+ ["implicit","暗黙の"]
 ];
 
-// ===== 正解 =====
-const CORRECT = [
-  "至る所にある",
-  "細心の注意を払う",
-  "曖昧な",
-  "認知の",
-  "避けられない",
-  "恣意的な",
-  "もっともらしい",
-  "首尾一貫した",
-  "顕著な",
-  "暗黙の"
-];
+let subject_id="", mode="learn";
+let index=0, answers=new Array(10);
 
-let subject_id = localStorage.getItem("subject_id");
-let index = 0;
-let answers = [];
-let mode = "learn"; // learn / review / test
-let start_time = new Date().toISOString();
-let locked = false;
-
-// ===== 初期画面 =====
 init();
 
 function init(){
-  document.getElementById("main").innerHTML = `
-    <input id="sid" placeholder="A01 / B01">
-    <br>
+  document.getElementById("main").innerHTML=`
+    <input id="sid" placeholder="A01 / B01"><br><br>
     <button onclick="start('learn')">初回学習</button>
     <button onclick="start('review')">復習</button>
     <button onclick="start('test')">テスト</button>
   `;
 }
 
-// ===== 開始 =====
 function start(m){
-  subject_id = document.getElementById("sid").value;
+  mode=m;
+  subject_id=document.getElementById("sid").value;
   if(!/^([AB][0-9]{2})$/.test(subject_id)){
-    alert("ID不正（A01 / B01）");
-    return;
+    alert("ID不正"); return;
   }
-  localStorage.setItem("subject_id", subject_id);
-  mode = m;
-  index = 0;
-  answers = [];
-  showQuestion();
+  index=0; answers.fill("");
+  show();
 }
 
-// ===== 問題表示 =====
-function showQuestion(){
-  locked = false;
-  document.getElementById("main").innerHTML = `
-    <p>${index+1} / 10</p>
-    <p><b>${QUESTIONS[index]}</b></p>
-    <input id="ans">
-    <br>
-    <button onclick="check()">回答</button>
-  `;
+function show(){
+  const [q,a]=QUESTIONS[index];
+  let html=`<p>${index+1}/10</p><p><b>${q}</b></p>`;
+  if(mode==="learn") html+=`<p>${a}</p>`;
+  html+=`<input id="ans"><button onclick="check()">回答</button>`;
+  document.getElementById("main").innerHTML=html;
 }
 
-// ===== 回答チェック =====
 function check(){
-  if(locked) return;
-  locked = true;
+  const input=document.getElementById("ans").value.trim();
+  answers[index]=input;
+  const correct=QUESTIONS[index][1];
+  const ok=input===correct;
 
-  const ans = document.getElementById("ans").value.trim();
-  answers.push(ans);
-
-  const correct = CORRECT[index];
-  const ok = ans === correct;
-
-  let html = `
-    <div class="box">
-      <p>あなた：${ans || "(無回答)"}</p>
-      <p>正解：${correct}</p>
-      <p class="${ok ? "ok" : "ng"}">
-        ${ok ? "⭕ 正解" : "❌ 不正解"}
-      </p>
-      <button onclick="next()">次へ</button>
-    </div>
-  `;
-
-  if(mode === "test"){
-    html = `<button onclick="next()">次へ</button>`;
+  let html="";
+  if(mode!=="test"){
+    html+=`<div class="box">
+      あなた：${input||"(無回答)"}<br>
+      正解：${correct}<br>
+      <span class="${ok?"ok":"ng"}">${ok?"⭕":"❌"}</span>
+    </div>`;
   }
-
-  document.getElementById("main").innerHTML += html;
+  html+=`<button onclick="next()">次へ</button>`;
+  document.getElementById("main").innerHTML+=html;
 }
 
-// ===== 次へ =====
 function next(){
   index++;
-  if(index < QUESTIONS.length){
-    showQuestion();
-  } else {
-    finish();
-  }
+  index<10?show():finish();
 }
 
-// ===== 終了処理 =====
+function calcParams(score){
+  const accuracy=score/10;
+  const alpha=(subject_id[0]==="A")?0.6:0.9;
+  const beta=0.25*(1-accuracy);
+  return {alpha,beta};
+}
+
+function calcNextDate(alpha,beta){
+  const theta=0.7;
+  const t=Math.pow(-Math.log(theta)/beta,1/alpha);
+  const d=new Date();
+  d.setHours(0,0,0,0);
+  d.setDate(d.getDate()+Math.max(1,Math.round(t)));
+  return d;
+}
+
 async function finish(){
-  const res = await fetch(WEBAPP_URL,{
+  let score=0;
+  for(let i=0;i<10;i++) if(answers[i]===QUESTIONS[i][1]) score++;
+
+  const {alpha,beta}=calcParams(score);
+
+  await fetch(WEBAPP_URL,{
     method:"POST",
-    body:JSON.stringify({
-      subject_id,
-      answers,
-      mode,
-      start_time
-    })
+    body:JSON.stringify({subject_id,answers,score,mode,alpha,beta})
   });
 
-  const data = await res.json();
+  let html=`<h3>得点 ${score}/10</h3>`;
 
-  let html = `<h3>結果一覧</h3>`;
-
-  data.detail.forEach((d, i) => {
-    html += `
-      <p>
-        ${i+1}. ${d.question}<br>
-        あなた：${d.your || "(無回答)"}<br>
-        正解：${d.correct}<br>
-        <span class="${d.ok ? "ok" : "ng"}">
-          ${d.ok ? "⭕ 正解" : "❌ 不正解"}
-        </span>
-      </p>
-    `;
-  });
-
-  html += `<hr><p><b>得点：</b>${data.score} / 10</p>`;
-
-  if(subject_id[0] === "A" && mode !== "test" && data.next_date){
-    const d = new Date(data.next_date);
-    if(!isNaN(d)){
-      html += `<p><b>次回学習日：</b>${d.toLocaleDateString()}</p>`;
-    }
+  if(subject_id[0]==="A" && mode!=="test"){
+    const next=calcNextDate(alpha,beta);
+    html+=`<p><b>次回学習日：</b>${next.toLocaleDateString()}</p>`;
   }
 
-  document.getElementById("main").innerHTML = html;
+  document.getElementById("main").innerHTML=html;
 }
 </script>
 </body>
